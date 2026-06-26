@@ -1,0 +1,18 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_PATH: /app/ml/artifacts/prophet_model.pkl
+      DF_PATH: /app/ml/artifacts/gold_df.pkl
+      FEAT_PATH: /app/ml/artifacts/feature_cols.pkl
+    volumes:
+      - ./ml:/app/ml
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
