@@ -113,16 +113,16 @@ def forecast_future(days: int = 30):
 
     try:
         price_buffer = list(df['Price'].values)
-        future_dates = pd.bdate_range(start=df.index[-1], periods=days + 1)[1:]
+        future_dates = pd.bdate_range(
+            start=df.index[-1] + pd.Timedelta(days=1),
+            periods=days
+        )
         records = []
 
         for date in future_dates:
             row = {
                 'ds':        date,
                 'Lag_1':     price_buffer[-1],
-                'Lag_3':     price_buffer[-3],
-                'Lag_5':     price_buffer[-5],
-                'Lag_10':    price_buffer[-10],
                 'MA_7':      np.mean(price_buffer[-7:]),
                 'MA_21':     np.mean(price_buffer[-21:]),
                 'RSI':       _calc_rsi(price_buffer),
