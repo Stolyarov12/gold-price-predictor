@@ -8,7 +8,7 @@ from transformers import pipeline
 from prophet import Prophet
 from datetime import datetime, timedelta
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "ВАШ_КЛЮЧ_ЗДЕСЬ")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "3894c33e01854edf8061d194bc5ff623")
 
 # ИСТОЧНИК 1: Цены золота (yfinance)
 
@@ -23,9 +23,80 @@ def load_gold_prices():
 # ИСТОЧНИК 2: Новости (NewsAPI + FinBERT)
 
 def load_sentiment():
-    print("Используем нейтральный sentiment (FinBERT отключён для скорости)...")
-    return pd.DataFrame(columns=['Sentiment'])
+    print("Загружаем sentiment из новостей через FinBERT...")
+    
+    # Если уже есть сохранённый файл — используем его
+    sentiment_cache = 'ml/artifacts/sentiment_cache.csv'
+    
+    try:
+        import os
+        os.environ['TRANSFORMERS_NO_PYTORCH'] = '0'
+        from newsapi import NewsApiClient
+        from transformers import pipeline
 
+        NEWS_API_KEY = os.getenv("NEWS_API_KEY", "ВАШ_КЛЮЧ")
+        newsapi = NewsApiClient(api_key=NEWS_API_KEY)
+
+        print("Загружаем FinBERT...")
+        sentiment_pipe = pipeline(
+            "text-classification",
+            model="ProsusAI/finbert",
+            tokenizer="ProsusAI/finbert"
+        )
+
+        records = []
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=28)
+        current = start_date
+
+        while current < end_date:
+            next_day = current + timedelta(days=1)
+            try:
+                articles = newsapi.get_everything(
+                    q='gold price OR XAU OR gold market',
+                    from_param=current.strftime('%Y-%m-%d'),
+                    to=next_day.strftime('%Y-%m-%d'),
+                    language='en',
+                    page_size=5
+                )
+                headlines = [a['title'] for a in articles['articles'] if a['title']]
+                if headlines:
+                    results = sentiment_pipe(headlines[:5], truncation=True, max_length=512)
+                    score = sum(
+                        r['score'] if r['label'] == 'positive'
+                        else -r['score'] if r['label'] == 'negative'
+                        else 0
+                        for r in results
+                    ) / len(results)
+                else:
+                    score = 0.0
+            except:
+                score = 0.0
+
+            records.append({
+                'Date': current.strftime('%Y-%m-%d'),
+                'Sentiment': score
+            })
+            print(f"  {current.strftime('%Y-%m-%d')}: {score:.3f}")
+            current = next_day
+
+        df = pd.DataFrame(records)
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+
+        # Сохраняем кэш
+        df.to_csv(sentiment_cache)
+        print(f"✅ Sentiment сохранён в {sentiment_cache}")
+        return df
+
+    except Exception as e:
+        print(f"⚠️ FinBERT недоступен: {e}")
+        # Пробуем загрузить кэш
+        if os.path.exists(sentiment_cache):
+            print("Используем кэшированный sentiment...")
+            df = pd.read_csv(sentiment_cache, index_col='Date', parse_dates=True)
+            return df
+        return pd.DataFrame(columns=['Sentiment'])
 
 # FEATURE ENGINEERING
 
