@@ -61,35 +61,35 @@ def get_history(days: int = 90):
 
 @app.get("/price/predict")
 def predict_tomorrow():
-    """Предсказание цены на завтра"""
     if model is None or df is None:
         return {"error": "Модель не загружена. Запустите train.py"}
 
     try:
         price_buffer = list(df['Price'].values)
 
+        # Берём последнюю дату из обучающих данных + 1 день
+        last_train_date = df.index[-1]
+        next_date = last_train_date + pd.Timedelta(days=1)
+
         row = {
-            'ds':         pd.Timestamp(datetime.now().date()),
-            'Lag_1':      price_buffer[-1],
-            'Lag_3':      price_buffer[-3],
-            'Lag_5':      price_buffer[-5],
-            'Lag_10':     price_buffer[-10],
-            'MA_7':       np.mean(price_buffer[-7:]),
-            'MA_21':      np.mean(price_buffer[-21:]),
-            'RSI':        _calc_rsi(price_buffer),
-            'MACD':       _calc_macd(price_buffer),
-            'Sentiment':  0.0,
-            'Return_1d':  (price_buffer[-1] - price_buffer[-2]) / price_buffer[-2],
+            'ds':        next_date,
+            'Lag_1':     price_buffer[-1],
+            'MA_7':      np.mean(price_buffer[-7:]),
+            'MA_21':     np.mean(price_buffer[-21:]),
+            'RSI':       _calc_rsi(price_buffer),
+            'MACD':      _calc_macd(price_buffer),
+            'Sentiment': 0.0,
+            'Return_1d': (price_buffer[-1] - price_buffer[-2]) / price_buffer[-2],
         }
 
         X = pd.DataFrame([row])
         forecast = model.predict(X)
 
-        last_price  = float(price_buffer[-1])
-        pred_price  = float(forecast['yhat'].values[0])
-        pred_lower  = float(forecast['yhat_lower'].values[0])
-        pred_upper  = float(forecast['yhat_upper'].values[0])
-        change_pct  = (pred_price - last_price) / last_price * 100
+        last_price = float(price_buffer[-1])
+        pred_price = float(forecast['yhat'].values[0])
+        pred_lower = float(forecast['yhat_lower'].values[0])
+        pred_upper = float(forecast['yhat_upper'].values[0])
+        change_pct = (pred_price - last_price) / last_price * 100
 
         return {
             "last_price":   round(last_price, 2),
@@ -98,8 +98,8 @@ def predict_tomorrow():
             "upper":        round(pred_upper, 2),
             "change_pct":   round(change_pct, 2),
             "direction":    "📈 Рост" if change_pct > 0 else "📉 Падение",
-            "last_date":    str(df.index[-1].date()),
-            "predict_date": str(pd.Timestamp(datetime.now().date() + pd.Timedelta(days=1)).date())
+            "last_date":    str(last_train_date.date()),
+            "predict_date": str(next_date.date())
         }
     except Exception as e:
         return {"error": str(e)}
