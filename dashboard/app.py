@@ -245,9 +245,9 @@ try:
         line=dict(color='#E63946', width=2, dash='dash')
     ))
     fig2.add_vline(
-        x=hist_df['date'].iloc[-1],
-        line_dash="dot", line_color="gray",
-        annotation_text="Начало прогноза"
+    x=str(hist_df['date'].iloc[-1].date()),
+    line_dash="dot", line_color="gray",
+    annotation_text="Начало прогноза"
     )
     fig2.update_layout(
         title=f'Прогноз на {forecast_days} дней вперёд',
